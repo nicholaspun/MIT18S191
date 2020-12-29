@@ -1,5 +1,5 @@
 ### A Pluto.jl notebook ###
-# v0.11.14
+# v0.12.18
 
 using Markdown
 using InteractiveUtils
@@ -84,7 +84,7 @@ In this model, an individual who is infected has a constant probability $p$ to r
 # ╔═╡ 02b0c2fc-0415-11eb-2b40-7bca8ea4eef9
 function bernoulli(p::Number)
 	
-	return missing
+	return rand() < p
 end
 
 # ╔═╡ 76d117d4-0403-11eb-05d2-c5ea47d06f43
@@ -99,7 +99,11 @@ function recovery_time(p)
 	end
 	
 	# Your code here. See the comment below about the p ≤ 0 case.
-	return missing
+	days = 0
+	while !bernoulli(p)
+		days += 1
+	end
+	return days + 1
 end
 
 # ╔═╡ 6db6c894-0415-11eb-305a-c75b119d89e9
@@ -133,7 +137,7 @@ md"""
 # ╔═╡ c5c7cb86-041b-11eb-3360-45463105f3c9
 function do_experiment(p, N)
 	
-	return missing
+	return [recovery_time(p) for i ∈ 1:N]
 end
 
 # ╔═╡ d8abd2f6-0416-11eb-1c2a-f9157d9760a7
@@ -164,8 +168,11 @@ As with any probability distribution, it should be normalised to $1$, in the sen
 
 # ╔═╡ 105d347e-041c-11eb-2fc8-1d9e5eda2be0
 function frequencies(values)
-	
-	return missing
+	freqs = Dict()
+	for val in values
+		freqs[val] = get(freqs, val, 0) + 1/length(values)
+	end
+	return freqs
 end
 
 # ╔═╡ 1ca7a8c2-041a-11eb-146a-15b8cdeaea72
@@ -252,8 +259,9 @@ md"""
 # ╔═╡ f1f89502-0494-11eb-2303-0b79d8bbd13f
 function frequencies_plot_with_mean(data)
 	# start out by copying the frequencies_plot_with_maximum function
-	
-	return missing
+	base = bar(frequencies(data))
+	vline!(base, [sum(data)/length(data)], label="mean")
+	return base
 end
 
 # ╔═╡ 06089d1e-0495-11eb-0ace-a7a7dc60e5b2
@@ -321,7 +329,7 @@ We have just defined a new type `InfectionStatus`, as well as names `S`, `I` and
 """
 
 # ╔═╡ 7f4e121c-041d-11eb-0dff-cd0cbfdfd606
-test_status = missing
+test_status = S
 
 # ╔═╡ 7f744644-041d-11eb-08a0-3719cc0adeb7
 md"""
@@ -329,7 +337,7 @@ md"""
 """
 
 # ╔═╡ 88c53208-041d-11eb-3b1e-31b57ba99f05
-
+typeof(InfectionStatus)
 
 # ╔═╡ 847d0fc2-041d-11eb-2864-79066e223b45
 md"""
@@ -344,9 +352,13 @@ For each agent we want to keep track of its infection status and the number of *
 """
 
 # ╔═╡ ae4ac4b4-041f-11eb-14f5-1bcde35d18f2
-mutable struct Agent
-	status::InfectionStatus
-	num_infected::Int64
+begin
+	mutable struct Agent
+		status::InfectionStatus
+		num_infected::Int64
+	end
+	
+	Agent() = Agent(S, 0)
 end
 
 # ╔═╡ ae70625a-041f-11eb-3082-0753419d6d57
@@ -357,7 +369,7 @@ When you define a new type like this, Julia automatically defines one or more **
 """
 
 # ╔═╡ 60a8b708-04c8-11eb-37b1-3daec644ac90
-
+methods(Agent)
 
 # ╔═╡ 189cae1e-0424-11eb-2666-65bf297d8bdd
 md"""
@@ -365,7 +377,7 @@ md"""
 """
 
 # ╔═╡ 18d308c4-0424-11eb-176d-49feec6889cf
-test_agent = missing
+test_agent = Agent(S, 0)
 
 # ╔═╡ 190deebc-0424-11eb-19fe-615997093e14
 md"""
@@ -389,8 +401,18 @@ md"""
 
 # ╔═╡ 98beb336-0425-11eb-3886-4f8cfd210288
 function set_status!(agent::Agent, new_status::InfectionStatus)
-	
+	agent.status = new_status
 	# your code here
+end
+
+# ╔═╡ a7f4f5be-4967-11eb-10e1-7db109f42b52
+function set_num_infected!(agent::Agent, new_num_infected::Int64)
+	agent.num_infected = new_num_infected
+end
+
+# ╔═╡ c42091a0-4967-11eb-0ad4-f5d1b26c837c
+function increment_num_infected(agent::Agent)
+	set_num_infected!(agent, agent.num_infected + 1)
 end
 
 # ╔═╡ 866299e8-0403-11eb-085d-2b93459cc141
@@ -401,14 +423,19 @@ md"""
 
 # ╔═╡ 9a837b52-0425-11eb-231f-a74405ff6e23
 function is_susceptible(agent::Agent)
-	
-	return missing
+	return agent.status == S
 end
 
 # ╔═╡ a8dd5cae-0425-11eb-119c-bfcbf832d695
 function is_infected(agent::Agent)
 	
-	return missing
+	return agent.status == I
+end
+
+# ╔═╡ 924c74d0-4969-11eb-0b14-336f32c5f53a
+function is_recovered(agent::Agent)
+	
+	return agent.status == R
 end
 
 # ╔═╡ 8692bf42-0403-11eb-191f-b7d08895274f
@@ -420,8 +447,10 @@ md"""
 
 # ╔═╡ 7946d83a-04a0-11eb-224b-2b315e87bc84
 function generate_agents(N::Integer)
-	
-	return missing
+	agents = [Agent() for _ ∈ 1:N]
+	infectedAgent = rand(1:N)
+	set_status!(agents[infectedAgent], I)
+	return agents
 end
 
 # ╔═╡ 488771e2-049f-11eb-3b0a-0de260457731
@@ -457,7 +486,16 @@ $(html"<span id=interactfunction></span>")
 
 # ╔═╡ 406aabea-04a5-11eb-06b8-312879457c42
 function interact!(agent::Agent, source::Agent, infection::InfectionRecovery)
-	# your code here
+	if is_susceptible(agent) && is_infected(source)
+		if bernoulli(infection.p_infection)
+			set_status!(agent, I)
+			increment_num_infected(source)
+		end
+	elseif is_infected(agent)
+		if bernoulli(infection.p_recovery)
+			set_status!(agent, R)
+		end
+	end
 end
 
 # ╔═╡ b21475c6-04ac-11eb-1366-f3b5e967402d
@@ -498,7 +536,9 @@ You should not use any global variables inside the functions: Each function must
 
 # ╔═╡ 2ade2694-0425-11eb-2fb2-390da43d9695
 function step!(agents::Vector{Agent}, infection::AbstractInfection)
-	# your code here
+	agent, source = rand(agents, 2)
+	interact!(agent, source, infection)
+	return agents
 end
 
 # ╔═╡ 955321de-0403-11eb-04ce-fb1670dfbb9e
@@ -508,7 +548,10 @@ md"""
 
 # ╔═╡ 46133a74-04b1-11eb-0b46-0bc74e564680
 function sweep!(agents::Vector{Agent}, infection::AbstractInfection)
-	# your code here
+	for i ∈ 1:length(agents)
+		step!(agents, infection)
+	end
+	return agents
 end
 
 # ╔═╡ 95771ce2-0403-11eb-3056-f1dc3a8b7ec3
@@ -528,10 +571,20 @@ _Feel free to store the counts in a different way, as long as the return type is
 
 # ╔═╡ 887d27fc-04bc-11eb-0ab9-eb95ef9607f8
 function simulation(N::Integer, T::Integer, infection::AbstractInfection)
-
-	# your code here
+	agents = generate_agents(N)
 	
-	return (S=missing, I=missing, R=missing)
+	S_counts = zeros(T)
+	I_counts = zeros(T)
+	R_counts = zeros(T)
+	
+	for i ∈ 1:T
+		sweep!(agents, infection)
+		S_counts[i] = length(filter(agt -> is_susceptible(agt), agents))
+		I_counts[i] = length(filter(agt -> is_infected(agt), agents))
+		R_counts[i] = length(filter(agt -> is_recovered(agt), agents))
+	end
+	
+	return (S=S_counts, I=I_counts, R=R_counts)
 end
 
 # ╔═╡ b92f1cec-04ae-11eb-0072-3535d1118494
@@ -621,6 +674,9 @@ let
 		plot!(p, 1:1000, sim.I, alpha=.5, label=nothing)
 	end
 	
+	infected = reduce(+, map(sim -> sim.I, simulations))/length(simulations)
+	plot!(p, 1:1000, infected, lw=3, label="mean")
+	
 	p
 end
 
@@ -634,7 +690,16 @@ function sir_mean_plot(simulations::Vector{<:NamedTuple})
 	# you might need T for this function, here's a trick to get it:
 	T = length(first(simulations).S)
 	
-	return missing
+	susceptible = reduce(+, map(sim -> sim.S, simulations))/length(simulations)
+	infected = reduce(+, map(sim -> sim.I, simulations))/length(simulations)
+	recovered = reduce(+, map(sim -> sim.R, simulations))/length(simulations)
+	
+	p = plot()
+	plot!(p, 1:1000, susceptible, label="susceptible")
+	plot!(p, 1:1000, infected, label="mean")
+	plot!(p, 1:1000, recovered, label="recovered")
+	
+	return p
 end
 
 # ╔═╡ 7f635722-04d0-11eb-3209-4b603c9e843c
@@ -646,7 +711,10 @@ md"""
 """
 
 # ╔═╡ 1c6aa208-04d1-11eb-0b87-cf429e6ff6d0
+md"Infection Probability: $(@bind p_infection Slider(0.01:1e-3:1, show_value=true))"
 
+# ╔═╡ af718480-496c-11eb-13fc-191de614ac36
+md"Recovery Probability: $(@bind p_recovery Slider(0.01:1e-3:1, show_value=true))"
 
 # ╔═╡ 95eb9f88-0403-11eb-155b-7b2d3a07cff0
 md"""
@@ -1080,10 +1148,13 @@ bigbreak
 # ╠═82f2580a-04c8-11eb-1eea-bdb4e50eee3b
 # ╟─8631a536-0403-11eb-0379-bb2e56927727
 # ╠═98beb336-0425-11eb-3886-4f8cfd210288
+# ╠═a7f4f5be-4967-11eb-10e1-7db109f42b52
+# ╠═c42091a0-4967-11eb-0ad4-f5d1b26c837c
 # ╟─7c515a7a-04d5-11eb-0f36-4fcebff709d5
 # ╟─866299e8-0403-11eb-085d-2b93459cc141
 # ╠═9a837b52-0425-11eb-231f-a74405ff6e23
 # ╠═a8dd5cae-0425-11eb-119c-bfcbf832d695
+# ╠═924c74d0-4969-11eb-0b14-336f32c5f53a
 # ╟─c4a8694a-04d4-11eb-1eef-c9e037e6b21f
 # ╟─8692bf42-0403-11eb-191f-b7d08895274f
 # ╠═7946d83a-04a0-11eb-224b-2b315e87bc84
@@ -1120,7 +1191,8 @@ bigbreak
 # ╠═843fd63c-04d0-11eb-0113-c58d346179d6
 # ╠═7f635722-04d0-11eb-3209-4b603c9e843c
 # ╟─dfb99ace-04cf-11eb-0739-7d694c837d59
-# ╠═1c6aa208-04d1-11eb-0b87-cf429e6ff6d0
+# ╟─1c6aa208-04d1-11eb-0b87-cf429e6ff6d0
+# ╟─af718480-496c-11eb-13fc-191de614ac36
 # ╟─95eb9f88-0403-11eb-155b-7b2d3a07cff0
 # ╠═287ee7aa-0435-11eb-0ca3-951dbbe69404
 # ╟─9611ca24-0403-11eb-3582-b7e3bb243e62
