@@ -1,5 +1,5 @@
 ### A Pluto.jl notebook ###
-# v0.12.4
+# v0.12.18
 
 using Markdown
 using InteractiveUtils
@@ -142,7 +142,7 @@ md"""
 # ╔═╡ d217a4b6-12e8-11eb-29ce-53ae143a39cd
 function finite_difference_slope(f::Function, a, h=1e-3)
 	
-	return missing
+	return (f(a + h) - f(a))/h
 end
 
 # ╔═╡ f0576e48-1261-11eb-0579-0b1372565ca7
@@ -156,7 +156,7 @@ md"""
 # ╔═╡ cbf0a27a-12e8-11eb-379d-85550b942ceb
 function tangent_line(f, a, h)
 	
-	return missing
+	return x -> finite_difference_slope(f, a, h) * (x - a) + f(a)
 end
 
 # ╔═╡ 2b79b698-10b9-11eb-3bde-53fc1c48d5f7
@@ -220,7 +220,7 @@ Using this formula, we only need to know the _value_ ``f(a)`` and the _slope_ ``
 function euler_integrate_step(fprime::Function, fa::Number, 
 		a::Number, h::Number)
 	
-	return missing
+	return h * fprime(a + h) + fa
 end
 
 # ╔═╡ 2335cae6-112f-11eb-3c2c-254e82014567
@@ -235,7 +235,11 @@ function euler_integrate(fprime::Function, fa::Number,
 	a0 = T[1]
 	h = step(T)
 	
-	return missing
+	return accumulate(
+		(i, x) -> euler_integrate_step(fprime, last(i), a0 + x, h),
+		T,
+		init = [a0]
+	)
 end
 
 # ╔═╡ 4d0efa66-12c6-11eb-2027-53d34c68d5b0
@@ -300,9 +304,9 @@ function euler_SIR_step(β, γ, sir_0::Vector, h::Number)
 	s, i, r = sir_0
 	
 	return [
-		missing,
-		missing,
-		missing,
+		s - h * β * s * i,
+		i + h * (β * s * i - γ * i),
+		r + h * γ * i,
 	]
 end
 
@@ -325,14 +329,26 @@ function euler_SIR(β, γ, sir_0::Vector, T::AbstractRange)
 	
 	num_steps = length(T)
 	
-	return missing
+	ret = [sir_0]
+	
+	for _ ∈ 1:num_steps
+		push!(ret, euler_SIR_step(β, γ, last(ret), h))
+	end
+		
+	return ret[2:end]
 end
 
 # ╔═╡ 4b791b76-12cd-11eb-1260-039c938f5443
 sir_T = 0 : 0.1 : 60.0
 
+# ╔═╡ 58f8f622-4a42-11eb-1ed9-e90cbd55fb58
+md"β $(@bind β_interactive Slider(0:0.1:20, default=0.3, show_value=true))"
+
+# ╔═╡ 12a1f400-4a43-11eb-0fed-250062a4353d
+md"γ $(@bind γ_interactive Slider(0:0.001:1, default=0.15, show_value=true))"
+
 # ╔═╡ 0a095a94-1245-11eb-001a-b908128532aa
-sir_results = euler_SIR(0.3, 0.15, 
+sir_results = euler_SIR(β_interactive, γ_interactive, 
 	[0.99, 0.01, 0.00], 
 	sir_T)
 
@@ -354,7 +370,7 @@ function plot_sir!(p, T, results; label="", kwargs...)
 	p
 end
 
-# ╔═╡ 58675b3c-1245-11eb-3548-c9cb8a6b3188
+# ╔═╡ 2a9580f0-4a42-11eb-073e-2fb99c1d569d
 plot_sir!(plot(), sir_T, sir_results)
 
 # ╔═╡ 586d0352-1245-11eb-2504-05d0aa2352c6
@@ -397,7 +413,7 @@ You should use **anonymous functions** for this. These have the form `x -> x^2`,
 # ╔═╡ bd8522c6-12e8-11eb-306c-c764f78486ef
 function ∂x(f::Function, a, b)
 	
-	return missing
+	return finite_difference_slope(x -> f(x, b), a)
 end
 
 # ╔═╡ 321964ac-126d-11eb-0a04-0d3e3fb9b17c
@@ -409,7 +425,7 @@ end
 # ╔═╡ b7d3aa8c-12e8-11eb-3430-ff5d7df6a122
 function ∂y(f::Function, a, b)
 	
-	return missing
+	return finite_difference_slope(y -> f(a, y), b)
 end
 
 # ╔═╡ a15509ee-126c-11eb-1fa3-cdda55a47fcb
@@ -427,7 +443,7 @@ md"""
 # ╔═╡ adbf65fe-12e8-11eb-04e9-3d763ba91a63
 function gradient(f::Function, a, b)
 	
-	return missing
+	return [∂x(f, a, b), ∂y(f, a, b)]
 end
 
 # ╔═╡ 66b8e15e-126c-11eb-095e-39c2f6abc81d
@@ -455,7 +471,7 @@ We want to minimize a 1D function, i.e. a function $f: \mathbb{R} \to \mathbb{R}
 # ╔═╡ a7f1829c-12e8-11eb-15a1-5de40ed92587
 function gradient_descent_1d_step(f, x0; η=0.01)
 	
-	return missing
+	return x0 - η * finite_difference_slope(f, x0)
 end
 
 # ╔═╡ d33271a2-12df-11eb-172a-bd5600265f49
@@ -480,7 +496,10 @@ md"""
 # ╔═╡ 9489009a-12e8-11eb-2fb7-97ba0bdf339c
 function gradient_descent_1d(f, x0; η=0.01, N_steps=1000)
 	
-	return missing
+	return reduce(
+		(p, x) -> gradient_descent_1d_step(f, p; η),
+		1:N_steps,
+		init=x0)
 end
 
 # ╔═╡ 34dc4b02-1248-11eb-26b2-5d2610cfeb41
@@ -511,13 +530,16 @@ Multivariable calculus tells us that the gradient $\nabla f(a, b)$ at a point $(
 # ╔═╡ 852be3c4-12e8-11eb-1bbb-5fbc0da74567
 function gradient_descent_2d_step(f, x0, y0; η=0.01)
 	
-	return missing
+	return (x0 - η * ∂x(f, x0, y0), y0 - η * ∂y(f, x0, y0))
 end
 
 # ╔═╡ 8a114ca8-12e8-11eb-2de6-9149d1d3bc3d
-function gradient_descent_2d(f, x0, y0; η=0.01)
+function gradient_descent_2d(f, x0, y0; η=0.01, N_steps=1000)
 	
-	return missing
+	return reduce(
+		(p, x) -> gradient_descent_2d_step(f, p...; η),
+		1:N_steps,
+		init=(x0, y0))
 end
 
 # ╔═╡ 4454c2b2-12e3-11eb-012c-c362c4676bf6
@@ -541,7 +563,7 @@ We also prepared a 3D visualisation if you like! It's a bit slow...
 """
 
 # ╔═╡ 605aafa4-12e7-11eb-2d13-7f7db3fac439
-run_3d_visualisation = false
+run_3d_visualisation = false 
 
 # ╔═╡ a03890d6-1248-11eb-37ee-85b0a5273e0c
 md"""
@@ -625,7 +647,7 @@ $$\mathcal{L}(\mu, \sigma) := \sum_i [f_{\mu, \sigma}(x_i) - y_i]^2$$
 # ╔═╡ 2fc55daa-124f-11eb-399e-659e59148ef5
 function loss_dice(μ, σ)
 	
-	return missing
+	return sum((gauss.(dice_x, μ, σ) - dice_y).^2)
 end
 
 # ╔═╡ 3a6ec2e4-124f-11eb-0f68-791475bab5cd
@@ -641,8 +663,9 @@ md"""
 found_μ, found_σ = let
 	
 	# your code here
+	gradient_descent_2d(loss_dice, 30, 1; η=0.1, N_steps=100000)
 	
-	missing, missing
+	# missing, missing
 end
 
 # ╔═╡ ac320522-124b-11eb-1552-51c2adaf2521
@@ -729,12 +752,12 @@ This time, instead of comparing two vectors of numbers, we need to compare two v
 
 # ╔═╡ 754b5368-12e8-11eb-0763-e3ec56562c5f
 function loss_sir(β, γ)
-	
-	return missing
+	guess = euler_SIR(β, γ, hw4_results[1], hw4_T)
+	return sum(Iterators.flatten((hw4_results - guess)).^2)
 end
 
 # ╔═╡ ee20199a-12d4-11eb-1c2c-3f571bbb232e
-loss_sir(guess_β, guess_γ)
+loss_sir(0.01, 0.01)
 
 # ╔═╡ 38b09bd8-12d5-11eb-2f7b-579e9db3973d
 md"""
@@ -744,9 +767,8 @@ md"""
 # ╔═╡ 6e1b5b6a-12e8-11eb-3655-fb10c4566cdc
 found_β, found_γ = let
 	
-	# your code here
+	gradient_descent_2d(loss_sir, 0.05, 0.005; η=0.00001, N_steps=100000)
 	
-	missing, missing
 end
 
 # ╔═╡ b94b7610-106d-11eb-2852-25337ce6ec3a
@@ -1290,9 +1312,11 @@ end
 # ╟─517efa24-1244-11eb-1f81-b7f95b87ce3b
 # ╠═51a0138a-1244-11eb-239f-a7413e2e44e4
 # ╠═4b791b76-12cd-11eb-1260-039c938f5443
+# ╠═58f8f622-4a42-11eb-1ed9-e90cbd55fb58
+# ╠═12a1f400-4a43-11eb-0fed-250062a4353d
 # ╠═0a095a94-1245-11eb-001a-b908128532aa
 # ╟─51c9a25e-1244-11eb-014f-0bcce2273cee
-# ╟─58675b3c-1245-11eb-3548-c9cb8a6b3188
+# ╟─2a9580f0-4a42-11eb-073e-2fb99c1d569d
 # ╟─b4bb4b3a-12ce-11eb-3fe5-ad7ccd73febb
 # ╟─586d0352-1245-11eb-2504-05d0aa2352c6
 # ╠═589b2b4c-1245-11eb-1ec7-693c6bda97c4
@@ -1367,8 +1391,8 @@ end
 # ╟─c56cc19c-12ca-11eb-3c6c-7f3ea98eeb4e
 # ╟─496b8816-12d3-11eb-3cec-c777ba81eb60
 # ╟─480fde46-12d4-11eb-2dfb-1b71692c7420
-# ╟─4837e1ae-12d2-11eb-0df9-21dcc1892fc9
-# ╟─a9630d28-12d2-11eb-196b-773d8498b0bb
+# ╠═4837e1ae-12d2-11eb-0df9-21dcc1892fc9
+# ╠═a9630d28-12d2-11eb-196b-773d8498b0bb
 # ╟─23c53be4-12d4-11eb-1d39-8d11b4431993
 # ╟─6016fccc-12d4-11eb-0f58-b9cd331cc7b3
 # ╠═754b5368-12e8-11eb-0763-e3ec56562c5f
