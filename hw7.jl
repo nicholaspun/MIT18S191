@@ -1,5 +1,5 @@
 ### A Pluto.jl notebook ###
-# v0.12.6
+# v0.12.18
 
 using Markdown
 using InteractiveUtils
@@ -157,6 +157,10 @@ box_scene = [
 		[0,-10],
 		[0,1]
 		),
+	Wall(
+		[0, 10],
+		[0, -1]
+		)
 	# your code here
 	]
 
@@ -259,7 +263,7 @@ where $p$ is the position, $\hat \ell$ is the direction of the light, and $\hat 
 # ╔═╡ abe3de54-1ca0-11eb-01cd-11fe798bfb97
 function intersection_distance(photon::Photon, wall::Wall)
 	
-	return missing
+	return - dot(photon.p - wall.position,wall.normal)/dot(photon.l,wall.normal)
 end
 
 # ╔═╡ 42d65f56-1aca-11eb-1079-e32f85554349
@@ -282,7 +286,9 @@ We are using _floating points_ (`Float64`) to store positions, distances, etc., 
 # ╔═╡ a5847264-1ca0-11eb-0b45-eb5388f6e688
 function intersection(photon::Photon, wall::Wall; ϵ=1e-3)
 	
-	return missing
+	D = intersection_distance(photon, wall)
+	
+	return D > ϵ ? Intersection(wall, D, photon.p + D * photon.l) : Miss()  
 end
 
 # ╔═╡ 7f286ccc-1c75-11eb-1270-95a87840b300
@@ -349,15 +355,6 @@ By taking the minimum, we have found our closest hit! Let's turn this into a fun
 👉 Write a function `closest_hit` that takes a `photon` and a vector of objects. Calculate the vector of `Intersection`s/`Miss`es, and return the `minimum`.
 """
 
-# ╔═╡ 19cf420e-1c7c-11eb-1cb8-dd939fee1276
-function closest_hit(photon::Photon, objects::Vector{<:Object})
-	
-	return missing
-end
-
-# ╔═╡ b8cd4112-1c7c-11eb-3b2d-29170ad9beb5
-test_closest = closest_hit(philip, ex_1_scene)
-
 # ╔═╡ e9c6a0b8-1ad0-11eb-1606-0319caf0948a
 md"""
  $(html"<br><br><br><br>")
@@ -391,7 +388,7 @@ md"""
 """
 
 # ╔═╡ 79532662-1c7e-11eb-2edf-57e7cfbc1eda
-
+reflect([√2/2, -√2/2], [0, 1]) # should return [√2/2, √2/2]
 
 # ╔═╡ b6614d80-194b-11eb-1edb-dba3c29672f8
 md"""
@@ -405,7 +402,7 @@ Our event-driven simulation is a stepping method, but instead of taking small st
 # ╔═╡ 2c6defd0-1ca1-11eb-17db-d5cb498f3265
 function interact(photon::Photon, hit::Intersection{Wall})
 	
-	return missing
+	return Photon(hit.point, reflect(photon.l, hit.object.normal), photon.ior)
 end
 
 # ╔═╡ 3f727a2c-1c80-11eb-3608-e55ccb9786d9
@@ -424,12 +421,6 @@ md"""
 
 👉 Write a function `trace` that takes an initial `Photon`, a vector of `Object`s and `N`, the number of steps to make. Return a vector of `Photon`s. Try to use `accumulate`.
 """
-
-# ╔═╡ 1a43b70c-1ca3-11eb-12a5-a94ebbba0e86
-function trace(photon::Photon, scene::Vector{<:Object}, N)
-	
-	return missing
-end
 
 # ╔═╡ 3cd36ac0-1a09-11eb-1818-75b36e67594a
 @bind mirror_test_ray_N Slider(1:30; default=4)
@@ -516,33 +507,6 @@ let
 	plot_photon_arrow!(p, philip, 5)
 end
 
-# ╔═╡ a99c40bc-1c7c-11eb-036b-7fe6e9b937e5
-let
-	p = plot_scene(ex_1_scene)
-	
-	plot_photon_arrow!(p, philip, 4; label="Philip")
-	
-	scatter!(p, test_closest.point[1:1], test_closest.point[2:2], label="Closest hit")
-	
-	p |> as_svg
-end
-
-# ╔═╡ 1ee0787e-1a08-11eb-233b-43a654f70117
-let
-	p = plot_scene(ex_1_scene, legend=false, xlim=(-11,11), ylim=(-11,11))
-	
-	path = trace(philip, ex_1_scene, mirror_test_ray_N)
-	
-	
-	line = [philip.p, [r.p for r in path]...]
-	plot!(p, first.(line), last.(line), lw=5, color=:pink)
-	
-	plot_photon_arrow!(p, philip)
-	plot_photon_arrow!.([p], path)
-	
-	p
-end |> as_svg
-
 # ╔═╡ e5c0e960-19cc-11eb-107d-39b397a783ab
 example_sphere = Sphere(
 	[7, -6],
@@ -625,7 +589,28 @@ With all this said, we are ready to write some code.
 # ╔═╡ 392fe192-1ca1-11eb-36c4-f9bd2b01a5e5
 function intersection(photon::Photon, sphere::Sphere; ϵ=1e-3)
 	
-	return missing
+	pos_diff = photon.p - sphere.center
+	a = dot(photon.l, photon.l)
+	b = 2 * dot(photon.l, pos_diff)
+	c = dot(pos_diff, pos_diff) - sphere.radius^2
+
+	discr = b^2 - 4 * a * c
+	if discr < ϵ
+		return Miss()
+	else
+		t1 = -(b + √discr)/(2 * a)
+		t2 = -(b - √discr)/(2 * a)
+		if t1 < ϵ && t2 < ϵ
+			return Miss()
+		elseif t1 < ϵ
+			return Intersection(sphere, t2, photon.p + t2 * photon.l)
+		elseif t2 < ϵ
+			return Intersection(sphere, t1, photon.p + t1 * photon.l)
+		else
+			t = min(t1, t2)
+			return Intersection(sphere, t, photon.p + t * photon.l)
+		end
+	end
 end
 
 # ╔═╡ a306e880-19eb-11eb-0ff1-d7ef49777f63
@@ -666,10 +651,30 @@ sort(all_intersections)
 # ╔═╡ 63ef21c6-1c7a-11eb-2f3c-c5ac16bc289f
 minimum(all_intersections)
 
+# ╔═╡ 19cf420e-1c7c-11eb-1cb8-dd939fee1276
+function closest_hit(photon::Photon, objects::Vector{<:Object})
+	
+	return minimum(intersection(photon, object) for object ∈ objects)
+end
+
+# ╔═╡ b8cd4112-1c7c-11eb-3b2d-29170ad9beb5
+test_closest = closest_hit(philip, ex_1_scene)
+
+# ╔═╡ a99c40bc-1c7c-11eb-036b-7fe6e9b937e5
+let
+	p = plot_scene(ex_1_scene)
+	
+	plot_photon_arrow!(p, philip, 4; label="Philip")
+	
+	scatter!(p, test_closest.point[1:1], test_closest.point[2:2], label="Closest hit")
+	
+	p |> as_svg
+end
+
 # ╔═╡ af5c6bea-1c9c-11eb-35ae-250337e4fc86
 test_sphere = Sphere(
-	[7, -6],
-	2,
+	[11.3, -10],
+	3,
 	1.5,
 )
 
@@ -798,7 +803,11 @@ md"""
 # ╔═╡ 427747d6-1ca1-11eb-28ae-ff50728c84fe
 function interact(photon::Photon, hit::Intersection{Sphere})
 	
-	return missing
+	n̂ = sphere_normal_at(hit.point, hit.object)
+	new_ior = photon.ior == 1.0 ? hit.object.ior : 1.0
+	new_dir = refract(photon.l, n̂, photon.ior, new_ior)
+	
+	return Photon(hit.point, new_dir, new_ior)
 end
 
 # ╔═╡ 0b03316c-1c80-11eb-347c-1b5c9a0ae379
@@ -821,6 +830,31 @@ function step_ray(photon::Photon, objects::Vector{<:Object})
 	interact(photon, hit)
 end
 
+# ╔═╡ 1a43b70c-1ca3-11eb-12a5-a94ebbba0e86
+function trace(photon::Photon, scene::Vector{<:Object}, N)
+
+	return last(accumulate(
+		(i, x) -> [i..., step_ray(last(i), scene)],
+		1:N;
+		init=[photon]))
+end
+
+# ╔═╡ 1ee0787e-1a08-11eb-233b-43a654f70117
+let
+	p = plot_scene(ex_1_scene, legend=false, xlim=(-11,11), ylim=(-11,11))
+	
+	path = trace(philip, ex_1_scene, mirror_test_ray_N)
+	
+	
+	line = [philip.p, [r.p for r in path]...]
+	plot!(p, first.(line), last.(line), lw=5, color=:pink)
+	
+	plot_photon_arrow!(p, philip)
+	plot_photon_arrow!.([p], path)
+	
+	p
+end |> as_svg
+
 # ╔═╡ dced1fd0-1c9e-11eb-3226-17dc1e09e018
 md"""
 To test your code, modify the definition of `test_lens_photon` and `test_lens` below.
@@ -831,9 +865,9 @@ test_lens_photon = Photon([0,0], [1,0], 1.0)
 
 # ╔═╡ 5895d9ae-1c9e-11eb-2f4e-671f2a7a0150
 test_lens = Sphere(
-	[5, -1.5],
-	3,
-	1.5,
+	[4, -1.5],
+	2,
+	1.3,
 	)
 
 # ╔═╡ 83acf10e-1c9e-11eb-3426-bb28e7bc6c79
@@ -1136,7 +1170,7 @@ TODO_note(text) = Markdown.MD(Markdown.Admonition("warning", "TODO note", [text]
 # ╟─584ce620-1935-11eb-177a-f75d9ad8a399
 # ╟─78915326-1937-11eb-014f-fff29b3660a0
 # ╠═14dc73d2-1a0d-11eb-1a3c-0f793e74da9b
-# ╠═71b70da6-193e-11eb-0bc4-f309d24fd4ef
+# ╟─71b70da6-193e-11eb-0bc4-f309d24fd4ef
 # ╟─54b81de0-193f-11eb-004d-f90ec43588f8
 # ╠═6fdf613c-193f-11eb-0029-957541d2ed4d
 # ╟─392c25b8-1add-11eb-225d-49cfca27bef4
