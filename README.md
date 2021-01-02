@@ -7,3 +7,6 @@ To run:
 ```
 import Pluto; Pluto.run()
 ```
+## Overview
+- hw4, hw5, hw6: Epidemic Modelling & playing around with SIR model
+- hw7, hw8: Raytracing in 2D and 3D (respectively)
